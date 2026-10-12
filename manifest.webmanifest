@@ -1,0 +1,15 @@
+{
+  "name": "땀방울",
+  "short_name": "땀방울",
+  "description": "로그인·구독 없는 운동 프로그램과 기록장",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F4FA",
+  "theme_color": "#5B4BFF",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
