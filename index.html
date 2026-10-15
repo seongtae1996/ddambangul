@@ -139,6 +139,18 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .mode[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
 .calhd{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsum{border-top:1px solid var(--line);margin-top:14px;padding-top:14px;display:flex;flex-direction:column;gap:12px}
+.big{white-space:nowrap}
+.big .pre{font:500 13px var(--f-body);color:var(--muted);margin:0 4px 0 0}
+.sess{display:flex;flex-direction:column;gap:6px}
+.shd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.shd .note{margin-left:auto}
+.exl{display:flex;flex-direction:column}
+.exr{display:flex;justify-content:space-between;align-items:baseline;gap:2px 12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.exr:last-child{border-bottom:0}
+.exr .n{font-weight:500;min-width:0}
+.exr .s{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.exr.open{flex-wrap:wrap}
+.exr.open .s{white-space:normal;text-align:left;flex-basis:100%}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:11px 20px;border-radius:999px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 @media (max-width:520px){h1{font-size:30px}.big{font-size:24px}.target{font-size:40px}.sum>div{padding-inline:8px}.hero{padding:18px 16px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -258,6 +270,7 @@ function cleanActive(a){
   }).filter(Boolean).slice(0,40);
   return {id:str(a.id,30)||uid(),name:str(a.name,40)||'운동',date:a.date,startedAt:num(a.startedAt,0,9e15,Date.now()),rid:str(a.rid,30),di:num(a.di,0,6,-1),items};
 }
+function canonItems(arr){(arr||[]).forEach(it=>{if(it&&typeof it.n==='string')it.n=canon(it.n)})}
 function clean(o,keepActive){
   const d=defaults();
   if(!o||typeof o!=='object')return d;
@@ -266,8 +279,10 @@ function clean(o,keepActive){
   d.weights=(Array.isArray(o.weights)?o.weights:[]).map(x=>x&&DATE_RE.test(x.date)?{date:x.date,kg:num(x.kg,20,300,null)}:null).filter(x=>x&&x.kg!=null).slice(-400);
   d.routines=(Array.isArray(o.routines)?o.routines:[]).map(cleanRoutine).filter(Boolean).slice(0,30);
   d.sessions=(Array.isArray(o.sessions)?o.sessions:[]).map(cleanSession).filter(Boolean).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.endedAt-b.endedAt).slice(-1500);
+  d.sessions.forEach(x=>{canonItems(x.items);if(x.name==='자유 운동')x.name=autoName(x.items)});
+  d.routines.forEach(r=>r.days.forEach(dd=>canonItems(dd.items)));
   d.lastBackup=num(o.lastBackup,0,9e15,0);
-  if(keepActive&&o.active)d.active=cleanActive(o.active);
+  if(keepActive&&o.active){d.active=cleanActive(o.active);if(d.active)canonItems(d.active.items)}
   return d;
 }
 let saveT=null;
@@ -299,11 +314,56 @@ const LIB=[
  ['오버헤드 프레스','어깨',1,'g'],['덤벨 숄더프레스','어깨',1,'d'],['파이크 푸시업','어깨',1,'b'],
  ['사이드 레터럴 레이즈','어깨',0,'d'],['페이스풀','어깨',0,'g'],['리어델트 플라이','어깨',0,'d'],
  ['바벨 컬','이두',0,'g'],['덤벨 컬','이두',0,'d'],['해머 컬','이두',0,'d'],
- ['트라이셉스 푸시다운','삼두',0,'g'],['오버헤드 트라이셉스 익스텐션','삼두',0,'d'],['다이아몬드 푸시업','삼두',0,'b'],['벤치 딥','삼두',0,'b'],
+ ['케이블 푸시다운','삼두',0,'g'],['오버헤드 트라이셉스 익스텐션','삼두',0,'d'],['다이아몬드 푸시업','삼두',0,'b'],['벤치 딥','삼두',0,'b'],
  ['힙쓰러스트','하체',1,'g'],['스모 스쿼트','하체',1,'d'],['덤벨 힙쓰러스트','하체',1,'d'],['힙 어브덕션 머신','하체',0,'g'],['케이블 킥백','하체',0,'g'],['싱글레그 글루트 브릿지','하체',0,'b'],
  ['케이블 크런치','코어',0,'g'],['레그 레이즈','코어',0,'b'],['크런치','코어',0,'b'],['플랭크','코어',0,'b','초']
 ];
 const GROUPS=['가슴','등','하체','어깨','이두','삼두','코어'];
+/* 기록·검색용 추가 운동 (프로그램 생성에는 쓰지 않음) */
+const LIB_EXTRA=[
+ ['인클라인 벤치프레스','가슴'],['디클라인 벤치프레스','가슴'],['덤벨 벤치프레스','가슴'],['스미스 벤치프레스','가슴'],['인클라인 체스트프레스 머신','가슴'],['펙덱 플라이','가슴'],['딥스','가슴'],['케이블 플라이','가슴'],
+ ['풀업','등'],['친업','등'],['어시스트 풀업 머신','등'],['티바 로우','등'],['머신 로우','등'],['원암 케이블 로우','등'],['하이 로우 머신','등'],['백 익스텐션','등'],['바벨 슈러그','등'],['랙 풀','등'],
+ ['핵 스쿼트','하체'],['스미스 스쿼트','하체'],['프론트 스쿼트','하체'],['펜듈럼 스쿼트','하체'],['V 스쿼트','하체'],['힙 어덕션 머신','하체'],['스텝업','하체'],['워킹 런지','하체'],['시티드 카프 레이즈','하체'],['스티프 레그 데드리프트','하체'],['굿모닝','하체'],
+ ['머신 숄더프레스','어깨'],['스미스 숄더프레스','어깨'],['아놀드 프레스','어깨'],['케이블 레터럴 레이즈','어깨'],['머신 레터럴 레이즈','어깨'],['프론트 레이즈','어깨'],['업라이트 로우','어깨'],['리버스 펙덱','어깨'],
+ ['프리처 컬','이두'],['케이블 컬','이두'],['EZ바 컬','이두'],['인클라인 덤벨 컬','이두'],['컨센트레이션 컬','이두'],['머신 컬','이두'],
+ ['로프 푸시다운','삼두'],['스컬 크러셔','삼두'],['케이블 오버헤드 익스텐션','삼두'],['덤벨 킥백','삼두'],['클로즈그립 벤치프레스','삼두'],['머신 딥스','삼두'],
+ ['행잉 레그 레이즈','코어'],['앱 롤아웃','코어'],['러시안 트위스트','코어'],['사이드 플랭크','코어','초'],['데드버그','코어'],['마운틴 클라이머','코어']
+];
+const ALIAS={
+ '벤치프레스':['플랫 벤치','벤치','바벨 벤치프레스'],'인클라인 벤치프레스':['인벤','인클라인 바벨 벤치프레스'],'스쿼트':['백스쿼트','바벨 스쿼트'],
+ '데드리프트':['데드','컨벤셔널 데드리프트'],'루마니안 데드리프트':['RDL','루마니안'],'오버헤드 프레스':['OHP','밀리터리 프레스','바벨 숄더프레스'],
+ '바벨 로우':['벤트오버 로우','바벨로우'],'랫풀다운':['렛풀다운','랫 풀다운'],'레그프레스':['레그 프레스'],'사이드 레터럴 레이즈':['사레레','사이드 레이즈','덤벨 레터럴 레이즈'],
+ '케이블 푸시다운':['트라이셉스 푸시다운','푸시다운','삼두 푸시다운'],'케이블 크로스오버':['크로스오버'],'펙덱 플라이':['펙덱','버터플라이'],
+ '리버스 펙덱':['리어 펙덱','리어델트 머신'],'시티드 케이블 로우':['케이블 로우','시티드 로우'],'핵 스쿼트':['핵스쿼트','핵'],'힙쓰러스트':['힙 쓰러스트','힙스러스트'],
+ '덤벨 숄더프레스':['덤벨 프레스 어깨'],'레그 익스텐션':['레그익스텐션'],'레그 컬':['라잉 레그 컬','시티드 레그 컬','레그컬'],'풀업':['턱걸이'],'행잉 레그 레이즈':['행잉'],
+ '러닝':['달리기','런닝'],'걷기':['워킹','산책'],'사이클':['자전거','실내자전거']
+};
+const normN=n=>String(n).toLowerCase().replace(/\s/g,'');
+let _canon=null;
+function canonMap(){
+  if(_canon)return _canon;
+  _canon=new Map();
+  const add=(k,v)=>{const x=normN(k);if(!_canon.has(x))_canon.set(x,v)};
+  LIB.forEach(e=>add(e[0],e[0]));LIB_EXTRA.forEach(e=>add(e[0],e[0]));CARDIO.forEach(n=>add(n,n));
+  Object.keys(ALIAS).forEach(k=>ALIAS[k].forEach(a=>add(a,k)));
+  return _canon;
+}
+const canon=n=>canonMap().get(normN(n))||n;
+function groupOf(n){
+  const e=LIB.find(x=>x[0]===n)||LIB_EXTRA.find(x=>x[0]===n);
+  if(e)return e[1];
+  return CARDIO.includes(n)?'유산소':'';
+}
+function autoName(items){
+  const cnt={};
+  items.forEach(it=>{const g=groupOf(it.n);if(g&&g!=='유산소'&&g!=='코어')cnt[g]=(cnt[g]||0)+it.sets.length});
+  const gs=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
+  if(!gs.length)return items.some(it=>it.kind==='cardio')?'유산소':items.some(it=>groupOf(it.n)==='코어')?'코어':'운동';
+  const up=gs.filter(g=>g!=='하체');
+  if(gs.includes('하체')&&up.length>=2)return '전신';
+  if(!gs.includes('하체')&&['가슴','등','어깨'].filter(g=>gs.includes(g)).length>=3)return '상체';
+  return gs.slice(0,2).join('·');
+}
 const CARDIO=['러닝','걷기','사이클','수영','줄넘기','유산소'];
 const DAYT={
  '전신':[['하체',1],['가슴',1],['등',1],['어깨',1],['코어',0]],
@@ -496,9 +556,11 @@ function exBlock(a,it){
 }
 function knownEx(){
   const out=[],seen=new Set();
-  LIB.forEach(e=>{out.push({n:e[0],kind:'sets',u:e[4]||'회',g:e[1]});seen.add(e[0])});
-  CARDIO.forEach(n=>{out.push({n,kind:'cardio',u:'분',g:'유산소'});seen.add(n)});
-  D.sessions.forEach(s=>s.items.forEach(it=>{if(!seen.has(it.n)){seen.add(it.n);out.push({n:it.n,kind:it.kind,u:it.u,g:'내 운동'})}}));
+  const push=o=>{const k=normN(o.n);if(seen.has(k))return;seen.add(k);o.k=k+' '+(ALIAS[o.n]||[]).map(normN).join(' ');out.push(o)};
+  LIB.forEach(e=>push({n:e[0],kind:'sets',u:e[4]||'회',g:e[1]}));
+  LIB_EXTRA.forEach(e=>push({n:e[0],kind:'sets',u:e[2]||'회',g:e[1]}));
+  CARDIO.forEach(n=>push({n,kind:'cardio',u:'분',g:'유산소'}));
+  D.sessions.forEach(s=>s.items.forEach(it=>push({n:it.n,kind:it.kind,u:it.u,g:'내 운동'})));
   return out;
 }
 function exPicker(onPick){
@@ -518,9 +580,10 @@ function exPicker(onPick){
       res.append(h('div',{class:'lbl'},rec.length?'최근 운동':'자주 하는 운동'),chips(rec.length?rec:base));
       return;
     }
-    const list=all.filter(e=>e.n.toLowerCase().replace(/\s/g,'').includes(q)||e.g.includes(q)).slice(0,8);
+    const rk=e=>{const t=e.k.split(' ');return t.includes(q)?0:t.some(x=>x.startsWith(q))?1:2};
+    const list=all.filter(e=>e.k.includes(q)||e.g.includes(q)).sort((a,b)=>rk(a)-rk(b)).slice(0,8);
     if(list.length)res.append(chips(list));
-    if(!all.some(e=>e.n.toLowerCase()===raw.toLowerCase())){
+    if(!all.some(e=>normN(e.n)===q)&&canon(raw)===raw){
       res.append(h('div',{class:'seg'},
         h('button',{type:'button',onclick:()=>onPick({n:raw,kind:'sets',u:'회',g:''})},'“'+raw+'” 새 운동 추가 (무게×횟수)'),
         h('button',{type:'button',onclick:()=>onPick({n:raw,kind:'cardio',u:'분',g:''})},'“'+raw+'” 새 운동 추가 (시간·거리)')));
@@ -605,6 +668,16 @@ function sessEdit(x){
   box.append(h('div',{class:'row'},h('button',{class:'btn primary',type:'button',onclick:()=>endEdit(x)},'수정 완료'),dl));
   return box;
 }
+function exSum(it){
+  const S=it.sets;if(!S.length)return '';
+  if(it.kind==='cardio'){
+    const km=S.reduce((a,y)=>a+y.km,0),mn=S.reduce((a,y)=>a+y.min,0);
+    return (km?Math.round(km*100)/100+'km · ':'')+fmtMS(mn)+(km&&mn?' · '+fmtPace(mn,km)+'/km':'');
+  }
+  const rg=(a,u)=>{const lo=Math.min(...a),hi=Math.max(...a);return (lo===hi?lo:lo+'~'+hi)+u};
+  const ws=S.map(y=>y.w).filter(w=>w>0);
+  return S.length+'세트 · '+(ws.length?rg(ws,'kg')+' × ':'')+rg(S.map(y=>y.r),it.u||'회');
+}
 function calBox(){
   const now=new Date();
   if(!UI.cal){UI.cal={y:now.getFullYear(),m:now.getMonth()};UI.calSel=ymd(now)}
@@ -639,15 +712,20 @@ function calBox(){
     const tkm=list.reduce((a,x)=>a+x.items.reduce((b,it)=>b+(it.n==='러닝'?it.sets.reduce((q,y)=>q+y.km,0):0),0),0);
     sum.append(h('div',{class:'sum'},
       h('div',null,h('div',{class:'lbl'},'운동 시간'),h('div',{class:'big'},fmtHM(tm))),
-      h('div',null,h('div',{class:'lbl'},'소모 칼로리'),h('div',{class:'big'},'약 '+fmtN(tk),h('small',null,'kcal'))),
+      h('div',null,h('div',{class:'lbl'},'소모 칼로리'),h('div',{class:'big'},h('small',{class:'pre'},'약'),fmtN(tk),h('small',null,'kcal'))),
       tkm>0?h('div',null,h('div',{class:'lbl'},'러닝 거리'),h('div',{class:'big'},(Math.round(tkm*100)/100)+'',h('small',null,'km')))
            :h('div',null,h('div',{class:'lbl'},'운동 횟수'),h('div',{class:'big'},String(list.length),h('small',null,'회')))));
     list.forEach(x=>{
       const t=sessType(x);
-      sum.append(UI.editId===x.id?sessEdit(x):h('div',{class:'det'},
-        h('div',null,h('span',{class:'sw',style:'--c:var('+TYPE[t][1]+');margin-right:6px'}),h('span',{class:'tag'},TYPE[t][0]),' ',h('b',null,x.name+' · '+fmtHM(x.dur/60)+' · 약 '+fmtN(sessKcal(x))+'kcal')),
-        x.items.map(it=>h('div',null,h('b',null,it.n),' ',it.sets.map(y=>fmtSet(y,it.u,it.kind)).join(', '))),
-        h('div',null,h('button',{class:'btn small',type:'button',onclick:()=>{UI.editId=x.id;renderToday()}},'수정'))));
+      if(UI.editId===x.id){sum.append(sessEdit(x));return}
+      const open=UI.calOpen===x.id;
+      sum.append(h('div',{class:'sess'},
+        h('div',{class:'shd'},h('span',{class:'sw',style:'--c:var('+TYPE[t][1]+')'}),h('b',null,x.name),h('span',{class:'note'},fmtHM(x.dur/60)+' · '+fmtN(sessKcal(x))+'kcal')),
+        h('div',{class:'exl'},x.items.map(it=>h('div',{class:'exr'+(open?' open':'')},h('span',{class:'n'},it.n),
+          h('span',{class:'s'},open?it.sets.map(y=>fmtSet(y,it.u,it.kind)).join(', '):exSum(it))))),
+        h('div',{class:'row',style:'gap:8px'},
+          h('button',{class:'btn small',type:'button','aria-expanded':String(open),onclick:()=>{UI.calOpen=open?null:x.id;renderToday()}},open?'간단히':'세트 전체 보기'),
+          h('button',{class:'btn small',type:'button',onclick:()=>{UI.editId=x.id;renderToday()}},'수정'))));
     });
     sum.append(h('p',{class:'note'},'소모 칼로리는 체중 '+D.profile.w+'kg 기준 MET 추정값입니다(웨이트 5.0, 러닝은 속도별 값). 실제와 다를 수 있습니다.'));
   }
@@ -754,7 +832,7 @@ function finish(){
     const mx=Math.max(...it.sets.map(s=>s.w)),prev=bestWeight(it.n);
     if(prev>0&&mx>prev)prs.push(it.n+' '+mx+'kg');
   });
-  D.sessions.push({id:a.id,date:a.date,name:a.name,dur:Math.round((Date.now()-a.startedAt)/1000),endedAt:Date.now(),items});
+  D.sessions.push({id:a.id,date:a.date,name:a.rid?a.name:autoName(items),dur:Math.round((Date.now()-a.startedAt)/1000),endedAt:Date.now(),items});
   const r=D.routines.find(x=>x.id===a.rid);
   if(r&&a.di>=0)r.nextDay=(a.di+1)%r.days.length;
   D.active=null;save();renderToday();
